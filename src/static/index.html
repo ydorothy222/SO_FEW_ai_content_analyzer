@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 内容永动机 · Dan Koe 四步 Skills</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #e8e8e8;
+      --muted: #888;
+      --accent: #22c55e;
+      --accent-dim: #16a34a;
+      --step1: #3b82f6;
+      --step2: #8b5cf6;
+      --step3: #f59e0b;
+      --step4: #ec4899;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Noto Sans SC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem;
+      letter-spacing: 0.02em;
+    }
+    .order {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin-top: 1rem;
+    }
+    .order span {
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .order .s1 { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .order .s2 { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
+    .order .s3 { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .order .s4 { background: rgba(236, 72, 153, 0.2); color: #f9a8d4; }
+    .order .arrow { color: var(--muted); font-weight: 300; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      user-select: none;
+      gap: 1rem;
+    }
+    .card-header:hover { background: rgba(255,255,255,0.02); }
+    .card-header .title {
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+    .card-header .badge {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+    .card.s1 .badge { background: rgba(59, 130, 246, 0.25); color: #93c5fd; }
+    .card.s2 .badge { background: rgba(139, 92, 246, 0.25); color: #c4b5fd; }
+    .card.s3 .badge { background: rgba(245, 158, 11, 0.25); color: #fcd34d; }
+    .card.s4 .badge { background: rgba(236, 72, 153, 0.25); color: #f9a8d4; }
+    .card-body { padding: 0 1.25rem 1.25rem; }
+    .card-body.hidden { display: none; }
+    .desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 0.75rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      resize: vertical;
+      margin-bottom: 0.75rem;
+    }
+    textarea::placeholder { color: var(--muted); }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    button.run {
+      padding: 0.5rem 1.25rem;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button.run:hover { background: var(--accent-dim); }
+    button.run:disabled { opacity: 0.6; cursor: not-allowed; }
+    .status {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .status.loading { color: var(--accent); }
+    .status.error { color: #f87171; }
+    .result-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .result-box.empty { color: var(--muted); }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .nav a { color: var(--text); text-decoration: none; margin-left: 1rem; font-size: 0.9rem; }
+    .nav a:hover { color: var(--accent); }
+    .nav .quota { font-size: 0.85rem; color: var(--muted); margin-right: auto; margin-left: 1rem; }
+    .nav .brand { font-weight: 600; margin-right: 1rem; }
+    .gate-overlay {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      color: var(--muted);
+    }
+    .gate-overlay a { color: var(--accent); }
+    footer {
+      text-align: center;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="brand" href="/content-workflow">AI 内容永动机</a>
+    <span class="quota" id="navQuota">加载中…</span>
+    <a href="/content-workflow">首页</a>
+    <span id="navGuest">
+      <a href="/static/login.html">登录</a>
+      <a href="/static/register.html">注册</a>
+    </span>
+    <span id="navUser" style="display:none;">
+      <a href="/static/account.html">账户 / 充值</a>
+      <a href="#" id="logoutLink">退出</a>
+    </span>
+  </nav>
+  <div class="container">
+    <header>
+      <h1>AI 内容永动机</h1>
+      <p style="color: var(--muted); margin: 0; font-size: 0.95rem;">Dan Koe 四步 Skills · 拆解 → 想清楚 → 写一次 → 用到极致</p>
+      <div class="order">
+        <span class="s1">1 拆解</span>
+        <span class="arrow">→</span>
+        <span class="s2">2 想清楚</span>
+        <span class="arrow">→</span>
+        <span class="s3">3 写一次</span>
+        <span class="arrow">→</span>
+        <span class="s4">4 用到极致</span>
+      </div>
+    </header>
+
+    <div id="gateOverlay" class="gate-overlay" style="display:none;"></div>
+    <div id="cards"></div>
+
+    <footer>
+      每个 Skill 独立使用；建议按顺序练习。API: <code>/v1/content-workflow/</code>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    const API_OPTS = { credentials: 'include' };
+
+    let meData = null;
+    async function loadMe() {
+      const r = await fetch(API_BASE + '/v1/auth/me', API_OPTS);
+      if (!r.ok) return null;
+      meData = await r.json();
+      return meData;
+    }
+    function renderNav() {
+      const quotaEl = document.getElementById('navQuota');
+      const guestEl = document.getElementById('navGuest');
+      const userEl = document.getElementById('navUser');
+      const gateEl = document.getElementById('gateOverlay');
+      if (!meData) {
+        quotaEl.textContent = '加载中…';
+        guestEl.style.display = '';
+        userEl.style.display = 'none';
+        gateEl.style.display = 'none';
+        return;
+      }
+      if (meData.type === 'guest') {
+        quotaEl.textContent = '剩余 ' + meData.remaining + ' 次体验';
+        guestEl.style.display = '';
+        userEl.style.display = 'none';
+        if (meData.remaining <= 0) {
+          gateEl.innerHTML = '免费体验次数已用完。请 <a href="/static/register.html">注册</a> 并 <a href="/static/account.html">充值</a> 后继续使用。';
+          gateEl.style.display = 'block';
+        } else {
+          gateEl.style.display = 'none';
+        }
+      } else {
+        quotaEl.textContent = meData.remaining === '不限' ? '用量：不限' : '余额 ' + (meData.balance || 0) + ' 次';
+        guestEl.style.display = 'none';
+        userEl.style.display = '';
+        if (meData.remaining !== '不限' && (meData.balance || 0) <= 0) {
+          gateEl.innerHTML = '余额不足。请 <a href="/static/account.html">充值</a> 后继续使用。';
+          gateEl.style.display = 'block';
+        } else {
+          gateEl.style.display = 'none';
+        }
+      }
+    }
+
+    async function loadWorkflow() {
+      const r = await fetch(API_BASE + '/v1/content-workflow/workflow', API_OPTS);
+      if (!r.ok) throw new Error('加载工作流失败');
+      return r.json();
+    }
+
+    function el(tag, attrs, ...children) {
+      const n = document.createElement(tag);
+      if (attrs && typeof attrs === 'object' && !attrs.nodeType) {
+        for (const [k, v] of Object.entries(attrs)) {
+          if (k === 'className') n.className = v;
+          else if (k === 'html') n.innerHTML = v;
+          else if (k.startsWith('on')) n.addEventListener(k.slice(2).toLowerCase(), v);
+          else if (v != null) n.setAttribute(k, v);
+        }
+      } else if (attrs && attrs.nodeType) {
+        children = [attrs, ...children];
+      }
+      children.forEach(c => { if (c != null) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+      return n;
+    }
+
+    function postSkill(skillId, body) {
+      const url = API_BASE + `/v1/content-workflow/skill/${skillId}`;
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+    }
+
+    function buildCard(step) {
+      const skillId = step.skill_id;
+      const inputName = skillId === 1 ? 'content' : skillId === 2 ? 'writing_intent' : skillId === 3 ? 'core_idea' : 'mother_content';
+      const card = el('div', { className: `card s${skillId}` });
+      const header = el('div', { className: 'card-header' });
+      const body = el('div', { className: 'card-body hidden' });
+
+      const title = el('div', { className: 'title' }, `${skillId}. ${step.name}`);
+      const badge = el('span', { className: 'badge' }, step.short);
+      header.appendChild(title);
+      header.appendChild(badge);
+
+      const desc = el('p', { className: 'desc' }, step.description);
+      const hint = el('div', { className: 'hint' }, step.input_hint);
+      const textarea = el('textarea', {
+        placeholder: step.input_hint,
+        'data-input': inputName,
+      });
+      const actions = el('div', { className: 'actions' });
+      const runBtn = el('button', { className: 'run', type: 'button' }, '运行');
+      const status = el('span', { className: 'status' });
+      const resultBox = el('div', { className: 'result-box empty' }, '运行后结果会显示在这里');
+
+      runBtn.onclick = async () => {
+        const payload = {};
+        if (skillId === 1) payload.content = textarea.value.trim();
+        else if (skillId === 2) payload.writing_intent = textarea.value.trim();
+        else if (skillId === 3) payload.core_idea = textarea.value.trim();
+        else payload.mother_content = textarea.value.trim();
+
+        if (skillId === 1 || skillId === 3 || skillId === 4) {
+          if (!payload[inputName]) {
+            status.textContent = '请先输入内容';
+            status.className = 'status error';
+            return;
+          }
+        }
+
+        runBtn.disabled = true;
+        status.textContent = '请求中…';
+        status.className = 'status loading';
+        resultBox.textContent = '';
+        resultBox.className = 'result-box empty';
+
+        try {
+          const res = await postSkill(skillId, payload);
+          const data = await res.json();
+          if (res.status === 401) {
+            status.textContent = '请先访问首页或登录';
+            status.className = 'status error';
+            runBtn.disabled = false;
+            return;
+          }
+          if (res.status === 402) {
+            status.textContent = '免费次数已用完，请注册并充值';
+            status.className = 'status error';
+            runBtn.disabled = false;
+            loadMe().then(renderNav);
+            return;
+          }
+          if (!res.ok) throw new Error(data.detail || res.statusText);
+          resultBox.textContent = data.result || '(无输出)';
+          resultBox.className = 'result-box';
+          status.textContent = '完成';
+          status.className = 'status';
+          loadMe().then(renderNav);
+        } catch (e) {
+          status.textContent = '失败: ' + (e.message || String(e));
+          status.className = 'status error';
+          resultBox.textContent = '';
+        } finally {
+          runBtn.disabled = false;
+        }
+      };
+
+      actions.appendChild(runBtn);
+      actions.appendChild(status);
+      body.appendChild(desc);
+      body.appendChild(hint);
+      body.appendChild(textarea);
+      body.appendChild(actions);
+      body.appendChild(resultBox);
+
+      header.onclick = () => {
+        body.classList.toggle('hidden');
+      };
+
+      card.appendChild(header);
+      card.appendChild(body);
+      return card;
+    }
+
+    (async function init() {
+      await loadMe();
+      renderNav();
+      document.getElementById('logoutLink').addEventListener('click', async (e) => {
+        e.preventDefault();
+        await fetch(API_BASE + '/v1/auth/logout', { method: 'POST', ...API_OPTS });
+        meData = null;
+        renderNav();
+        loadMe().then(renderNav);
+      });
+      try {
+        const w = await loadWorkflow();
+        const container = document.getElementById('cards');
+        w.steps.forEach(step => container.appendChild(buildCard(step)));
+      } catch (e) {
+        document.getElementById('cards').innerHTML = '<p style="color:#f87171">无法加载工作流，请确保后端已启动且 /v1/content-workflow/workflow 可访问。</p>';
+      }
+    })();
+  </script>
+</body>
+</html>

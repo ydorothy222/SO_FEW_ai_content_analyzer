@@ -1,0 +1,244 @@
+## 项目：智能陪伴服务端（Cursor 规则）
+
+### 1) 项目目标（What / Why）
+- **核心输入**：端侧硬件上传的长音频（通常约 1 小时/次），内容为日常对话。
+- **核心能力**：接收音频 → 持久化存储 → 转写（ASR）→ 结构化分析（NLP/LLM）→ 可检索与可追溯 → 支撑软件端问答/总结/建议。
+- **典型查询**（软件端）：
+  - “我今天的对话里有哪些不得当的地方？”
+  - “我今天见了哪些人？”
+  - “你觉得我应该怎样安排我的沟通方式更合理？”
+
+### 2) MVP 范围（必须先打通的最小闭环）
+MVP 只做 **“音频入库 + 基础转写 + 基础分析 + 基础问答”**，其余能力后续迭代。
+
+- **MVP 必做**
+  - **音频接收**：支持硬件上传单个音频文件（可能分片/断点续传先不做，除非必须）。
+  - **音频存储**：保存原始音频到对象存储/本地（可配置），数据库保存元数据（用户、设备、时间段、文件位置、状态）。
+  - **转写（ASR）**：将长音频转为文本（可分段），保存原始转写（含时间戳/置信度如可得）。
+  - **基础分析**：在转写基础上抽取：
+    - 人物/实体（“见了哪些人”）
+    - 风险/不得当表达（粗粒度即可）
+    - 简单沟通建议（规则 + LLM 总结均可，先保证可用）
+  - **核心使用路径**：提供一个 API 让软件端能：
+    - 查询某天的会话列表
+    - 获取某会话转写
+    - 获取分析结果
+    - 提问（RAG/摘要式问答均可）
+
+- **MVP 暂不做（除非你明确要求）**
+  - 端侧分片上传/断点续传/秒传
+  - 说话人分离（Diarization）与精确声纹识别
+  - 多模型自动路由、成本优化、复杂评测体系
+  - 多租户复杂权限与审计（MVP 只做最小安全）
+
+### 3) 高层架构约定（必须遵守）
+- **异步化**：长音频处理必须异步（队列/任务系统）。HTTP 上传只负责入库与返回 `job_id`。
+- **可追溯**：任何分析/问答结果必须能追到来源转写片段（带时间戳或片段 id）。
+- **幂等性**：上传与任务创建必须可幂等（用 `device_id + recording_id`），禁止重复写入。
+- **可恢复**：处理状态机必须可重试，失败记录原因与重试次数。
+- **隐私优先**：默认最小化存储与访问；日志禁止泄露原文/音频内容（除非显式 debug 且脱敏）。
+
+#### 3.1 硬件鉴权策略（分阶段）
+- **阶段 1（快速落地）**：`device_token + device_id`
+  - 设备预分配 `device_token`，上传时携带 `device_id`（ESP32-C3 MAC）。
+  - 服务端校验 `device_token` 有效且和 `device_id` 绑定。
+- **阶段 2（安全优化）**：HMAC 签名
+  - 设备侧对 `device_id + recording_id + timestamp` 做 HMAC-SHA256 签名。
+  - 服务端用同一密钥验签，并校验时间戳（如 5 分钟内有效），防止篡改与重放。
+
+#### 3.2 幂等性策略（服务端强制）
+- 设备上传时必须传 `recording_id`，推荐格式：`{device_id}_{start_ts}`，全局唯一。
+- 服务端以 `recording_id` 为幂等键：
+  - 首次上传：创建记录并进入处理流水线。
+  - 重复上传相同 `recording_id`：直接返回已有处理状态，不重复写 OSS/不重复建任务。
+
+### 4) 数据模型（建议字段，按实际实现）
+以下是建议，不强制，但 MVP 必须具备等价信息：
+- `users`: `id`
+- `devices`: `id`, `user_id`, `device_id(mac)` 等
+- `recordings` / `recording_meta`:  
+  - `id`（自增主键，可选）
+  - `recording_id`（幂等键，唯一）
+  - `device_id`
+  - `user_id`(可选，后续绑定)
+  - `start_at`（Unix 秒）
+  - `end_at`（Unix 秒）
+  - `timezone`（如 `Asia/Shanghai`）
+  - `audio_uri` / `oss_file_path`（OSS 对象路径）
+  - `status`：`uploaded|transcribing|analyzing|ready|failed`  
+  - `error_code`, `error_message`, `retry_count`
+  - `created_at`
+- `transcripts`（可一条或多条分段）:
+  - `recording_id`, `segment_index`, `start_ms`, `end_ms`
+  - `text`, `confidence`(可选), `asr_model`(可选)
+- `analyses`:
+  - `recording_id`, `analysis_version`
+  - `people`(结构化数组), `issues`(数组), `suggestions`(数组)
+  - `summary`(文本), `sources`(引用 transcript segment ids)
+
+可以参考如下关系型表结构（示例）：
+
+```sql
+CREATE TABLE recording_meta (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  device_id VARCHAR(64) NOT NULL,
+  recording_id VARCHAR(128) NOT NULL UNIQUE,
+  start_at BIGINT NOT NULL,
+  end_at BIGINT NOT NULL,
+  timezone VARCHAR(32) DEFAULT 'Asia/Shanghai',
+  oss_file_path VARCHAR(256) NOT NULL,
+  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_device_id (device_id),
+  INDEX idx_start_at (start_at)
+);
+```
+
+### 5) API 约定（MVP 推荐）
+> 实际路径可改，但语义保持一致；返回统一 `request_id` 便于追踪。
+
+- `POST /v1/recordings`  
+  - **用途**：上传音频（multipart/form-data）或先创建记录后直传（两段式也行）
+  - **返回**：`recording_id`, `job_id`, `status`
+- `GET /v1/recordings/{recording_id}`  
+  - **用途**：查询状态与元数据
+- `GET /v1/recordings?date=YYYY-MM-DD`
+  - **用途**：按天列出会话
+- `GET /v1/recordings/{recording_id}/transcript`
+- `GET /v1/recordings/{recording_id}/analysis`
+- `POST /v1/qa`
+  - **输入**：`user_id`, `date` 或 `recording_ids`, `question`
+  - **输出**：`answer`, `citations`（引用哪些片段/时间戳）
+
+### 6) 音频处理流水线（MVP 必须打通）
+状态机建议：
+1. `uploaded`: 音频落盘/对象存储成功
+2. `transcribing`: 进入 ASR 任务
+3. `analyzing`: 进入分析任务（NER/总结/风险点/建议）
+4. `ready`: 可供查询与问答
+5. `failed`: 记录错误，可重试
+
+**分段策略（建议）**：
+- 1 小时音频建议切成 30–120 秒段，避免 ASR/LLM 超时。
+- 分段要保留 `start_ms/end_ms`，后续引用与回放都需要。
+
+### 7) 模型与 OSS 约定（已确认：DashScope + OSS）
+- **ASR（转写）— DashScope Paraformer**
+  - Provider：`dashscope.audio.asr.Transcription`
+  - 模型：`paraformer-v1`
+  - **约定接口**：`transcribe(audio_url) -> segments[{start_ms,end_ms,text,confidence}]`
+  - **处理方式**：长音频采用“异步任务 + 轮询 wait/查询”模式；必须设置超时与重试；失败写入 `recordings.status=failed` 与 `error_*`。
+  - **注意**：不得将 `DASHSCOPE_API_KEY` 写入代码或提交到仓库，只允许通过环境变量注入。
+
+- **分析（NLP/LLM）— DashScope OpenAI Compatible + Qwen**
+  - Provider：OpenAI-compatible endpoint：`https://dashscope.aliyuncs.com/compatible-mode/v1`
+  - 模型：`qwen-plus`（后续可切换）
+  - **约定接口**：`analyze(transcript_segments) -> analysis_json`
+  - 输出必须为可校验 JSON（定义 schema），并包含 `sources` 引用到 transcript segment id 或时间戳。
+
+- **对象存储 — 阿里云 OSS（不加密）**
+  - Bucket：`sofewaccampany`
+  - Region：北京（`oss-cn-beijing`）
+  - Endpoint：`oss-cn-beijing.aliyuncs.com`
+  - Bucket 域名：`sofewaccampany.oss-cn-beijing.aliyuncs.com`
+  - CNAME（如使用）：`cn-beijing.taihangtop.cn` / `sofewaccampany.cn-beijing.taihangtop.cn`
+  - 访问方式：外网访问（HTTPS）
+  - **注意**：AccessKey 仅通过环境变量提供；仓库内不得出现任何真实 AK/SK。
+
+#### 7.1 OSS 访问策略（私有桶 + 签名 URL）
+- 桶权限：必须为「私有读写」，禁止开启公共读。
+- 上传流程：
+  - 设备调用服务端如 `POST /api/oss/get_upload_url`，携带 `device_token + recording_id`。
+  - 服务端校验通过后，用 OSS AK/SK 生成带过期时间（如 10 分钟）的上传签名 URL。
+  - 设备用该 URL 直接 PUT 上传音频。
+- 下载/访问流程：
+  - 客户端/App 调用 `GET /api/oss/get_download_url?recording_id=...`。
+  - 服务端校验用户/设备归属后，生成带过期时间（如 1 小时）的下载签名 URL。
+  - 客户端用该 URL 临时访问音频。
+
+### 8) 安全与隐私（强制）
+- **传输安全**：生产环境必须 HTTPS；MVP 开发可放宽但要有开关。
+- **鉴权**：至少区分 `device` 与 `user`：
+  - 设备上传使用 `device_token`（阶段 1）或 HMAC 签名（阶段 2）。
+  - App 查询使用 `user_token`。
+- **数据隔离**：任何查询必须以 `user_id` 或 `device_id` 归属为边界。
+- **日志红线**：
+  - 禁止在 info/warn/error 日志打印完整转写内容、原始音频 URL（可打印短 hash/recording_id）。
+  - 如需 debug，必须显式 `DEBUG_TRANSCRIPT=true` 且做脱敏/截断。
+
+#### 8.1 数据生命周期与保留策略（可配置）
+- 默认建议：
+  - **音频文件**：保留 30 天，通过 OSS 生命周期规则自动删除。
+  - **转写文本**：保留 90 天，由服务端定时任务清理。
+  - **分析结果**：保留 180 天，由服务端定时任务清理。
+- 所有保留天数必须可通过配置调整。
+
+#### 8.2 一键删除能力（合规）
+- 接口示例：`POST /api/recording/delete`，入参为 `recording_id`。
+- 处理步骤：
+  - 校验请求方权限（用户/设备归属）。
+  - 删除 OSS 中对应 audio 对象。
+  - 删除数据库中该 `recording_id` 的元数据、转写、分析记录。
+  - 记录操作日志（操作者、时间、recording_id）。
+
+### 9) 工程规范（Cursor 生成/修改代码必须遵守）
+- **目录结构**（建议，按你现有项目调整）
+  - `src/`：业务代码
+  - `src/api/`：路由与 handler
+  - `src/services/`：ASR、分析、存储、队列等
+  - `src/db/`：ORM/SQL 与 migrations
+  - `src/jobs/`：异步任务（transcribe/analyze）
+  - `src/utils/`：工具
+- **错误处理**：所有外部依赖（对象存储/ASR/LLM）必须：
+  - 超时、重试、熔断（MVP 可简化为重试+超时）
+  - 清晰的错误码与可观测字段（provider、latency_ms）
+- **配置**：所有密钥、模型选择、存储桶等必须来自环境变量（`.env`），不得硬编码。
+- **响应格式**：API 统一 JSON：
+  - 成功：`{ "data": ..., "request_id": ... }`
+  - 失败：`{ "error": { "code": "...", "message": "...", "details": ... }, "request_id": ... }`
+
+### 9.1) 环境变量清单（MVP 必须）
+> 仅列“变量名”，任何真实密钥禁止写入仓库/文档。
+
+- **服务端**
+  - `ENV`：`dev|prod`
+  - `PORT`
+  - `PUBLIC_BASE_URL`（生成可访问的音频 URL/回调 URL 时用）
+
+- **DashScope**
+  - `DASHSCOPE_API_KEY`
+  - `DASHSCOPE_ASR_MODEL`（默认 `paraformer-v1`）
+  - `DASHSCOPE_LLM_MODEL`（默认 `qwen-plus`）
+
+- **OSS**
+  - `OSS_ENDPOINT`（例：`oss-cn-beijing.aliyuncs.com`）
+  - `OSS_BUCKET`（例：`sofewaccampany`）
+  - `OSS_ACCESS_KEY_ID`
+  - `OSS_ACCESS_KEY_SECRET`
+  - `OSS_CNAME`（可选）
+  - `OSS_USE_HTTPS`（默认 `true`）
+  - `OSS_PREFIX`（可选：按用户/日期分目录）
+
+### 10) 迭代路线（用于后续增强）
+- 分片上传/断点续传（大文件更稳）
+- 说话人分离 + 角色识别（“我/对方/同事”）
+- 情绪/语气与冲突检测（更贴近“不得当”）
+- 可回放引用（答案引用时间戳，App 可直接跳转音频）
+- 成本与质量评测（抽样标注 + 自动指标）
+
+---
+
+## 你已确认的项目事实（已写入本规则）
+- **服务端技术栈**：FastAPI
+- **音频格式与上传方式**：WAV，单文件上传，最大约 84MB
+- **存储**：阿里云 OSS（不加密；外网 HTTPS）
+- **ASR**：DashScope `paraformer-v1`（异步转写）
+- **LLM 分析**：DashScope OpenAI-compatible + `qwen-plus`（同一 `DASHSCOPE_API_KEY`）
+
+## 仍需你确认的少量关键点（决定实现细节）
+1) **硬件鉴权**：上传是用固定 `device_token`、还是“请求签名”（推荐 HMAC）？是否有 `device_id` / `recording_id`？
+2) **录音元数据**：硬件能否提供 `start_at/end_at/timezone`？否则服务端用接收时间推断。
+3) **OSS 访问策略**：音频 URL 是 **私有桶 + 服务端签名 URL**（推荐），还是直接公开读？
+4) **转写回调**：你更希望“服务端轮询 wait”，还是配置 DashScope 回调 URL（更省资源）？
+5) **保留策略**：音频/转写/分析各自保留多久？是否需要用户“一键删除当天/全部数据”？
+
+

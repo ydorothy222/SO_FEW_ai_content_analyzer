@@ -1,0 +1,8 @@
+#!/bin/bash
+# 快速启动（开发/本地）
+# 在项目根目录执行: ./scripts/start.sh  或  bash scripts/start.sh
+
+cd "$(dirname "$0")/.."
+echo "Starting server at http://127.0.0.1:8000"
+echo "Press Ctrl+C to stop."
+exec python -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8000

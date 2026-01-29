@@ -1,0 +1,87 @@
+/* 全站通用：导航、表单、按钮 */
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #e8e8e8;
+  --muted: #888;
+  --accent: #22c55e;
+  --accent-dim: #16a34a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Noto Sans SC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.nav a {
+  color: var(--text);
+  text-decoration: none;
+  margin-left: 1rem;
+  font-size: 0.9rem;
+}
+.nav a:hover { color: var(--accent); }
+.nav .quota {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-right: auto;
+  margin-left: 1rem;
+}
+.nav .brand { font-weight: 600; margin-right: 1rem; }
+.container { max-width: 480px; margin: 0 auto; padding: 2rem 1.5rem; }
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+}
+.auth-card h1 { font-size: 1.25rem; margin: 0 0 1.5rem; text-align: center; }
+.form-group { margin-bottom: 1.25rem; }
+.form-group label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+.form-group input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+}
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.btn {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn:hover { background: var(--accent-dim); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.err { color: #f87171; font-size: 0.875rem; margin-top: 0.5rem; }
+.link-box { text-align: center; margin-top: 1.25rem; }
+.link-box a { color: var(--accent); text-decoration: none; }
+.link-box a:hover { text-decoration: underline; }

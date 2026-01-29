@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>账户与充值 · AI 内容永动机</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/common.css" />
+  <style>
+    .balance-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .balance-card .label { color: var(--muted); font-size: 0.875rem; }
+    .balance-card .value { font-size: 1.5rem; font-weight: 700; margin-top: 0.25rem; }
+    .recharge-tip { color: var(--muted); font-size: 0.9rem; margin-top: 1rem; }
+    .admin-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    .admin-section h2 { font-size: 1.1rem; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; }
+    .add-balance-form { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+    .add-balance-form input[type="number"] { width: 80px; padding: 0.4rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+    .add-balance-form .btn-small { padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; }
+    .msg { font-size: 0.85rem; margin-top: 0.5rem; }
+    .msg.ok { color: var(--accent); }
+    .msg.err { color: #f87171; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="brand" href="/content-workflow">AI 内容永动机</a>
+    <span class="quota" id="navQuota"></span>
+    <a href="/content-workflow">首页</a>
+    <a href="/static/account.html">账户</a>
+    <a href="#" id="logoutLink">退出</a>
+  </nav>
+  <div class="container">
+    <div id="guestTip" style="display:none;">
+      <div class="balance-card">
+        <p>您当前是游客身份。</p>
+        <p class="recharge-tip">体验次数用完后，请 <a href="/static/register.html">注册</a> 并联系管理员充值后继续使用。</p>
+      </div>
+    </div>
+    <div id="userPanel" style="display:none;">
+      <div class="balance-card">
+        <div class="label">当前余额（可用次数）</div>
+        <div class="value" id="balanceValue">0</div>
+        <p class="recharge-tip">需要更多次数？请联系管理员充值。充值后管理员会在后台为您增加余额。</p>
+      </div>
+    </div>
+    <div id="adminPanel" style="display:none;">
+      <div class="admin-section">
+        <h2>管理员 · 用户列表与充值</h2>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>邮箱</th><th>角色</th><th>余额</th><th>操作</th></tr>
+          </thead>
+          <tbody id="usersTable"></tbody>
+        </table>
+        <div class="add-balance-form" style="margin-top:1rem;">
+          <label>为用户 ID</label>
+          <input type="number" id="adminUserId" min="1" placeholder="用户ID" />
+          <label>增加次数</label>
+          <input type="number" id="adminAmount" min="1" value="10" />
+          <button type="button" class="btn btn-small" id="adminAddBtn">确认充值</button>
+        </div>
+        <div id="adminMsg" class="msg"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const API = { credentials: 'include' };
+    async function me() {
+      const r = await fetch('/v1/auth/me', API);
+      if (!r.ok) return null;
+      return r.json();
+    }
+    function showGuest() {
+      document.getElementById('guestTip').style.display = 'block';
+      document.getElementById('userPanel').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'none';
+    }
+    function showUser(balance) {
+      document.getElementById('guestTip').style.display = 'none';
+      document.getElementById('userPanel').style.display = 'block';
+      document.getElementById('adminPanel').style.display = 'none';
+      document.getElementById('balanceValue').textContent = balance;
+    }
+    async function showAdmin() {
+      document.getElementById('guestTip').style.display = 'none';
+      document.getElementById('userPanel').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'block';
+      const r = await fetch('/v1/admin/users', API);
+      if (!r.ok) return;
+      const data = await r.json();
+      const tbody = document.getElementById('usersTable');
+      tbody.innerHTML = data.users.map(u =>
+        `<tr><td>${u.id}</td><td>${u.email}</td><td>${u.role}</td><td>${u.balance}</td><td>-</td></tr>`
+      ).join('');
+    }
+    async function init() {
+      const data = await me();
+      if (!data) {
+        window.location.href = '/static/login.html';
+        return;
+      }
+      const navQuota = document.getElementById('navQuota');
+      if (data.type === 'guest') {
+        navQuota.textContent = `剩余 ${data.remaining} 次体验`;
+        showGuest();
+      } else {
+        navQuota.textContent = data.remaining === '不限' ? '用量：不限' : `余额 ${data.balance} 次`;
+        if (data.role === 'admin') {
+          showUser(data.balance);
+          await showAdmin();
+        } else {
+          showUser(data.balance);
+        }
+      }
+    }
+    document.getElementById('logoutLink').addEventListener('click', async (e) => {
+      e.preventDefault();
+      await fetch('/v1/auth/logout', { method: 'POST', ...API });
+      window.location.href = '/content-workflow';
+    });
+    document.getElementById('adminAddBtn').addEventListener('click', async () => {
+      const userId = parseInt(document.getElementById('adminUserId').value, 10);
+      const amount = parseInt(document.getElementById('adminAmount').value, 10);
+      const msgEl = document.getElementById('adminMsg');
+      if (!userId || !amount) {
+        msgEl.textContent = '请填写用户 ID 和次数';
+        msgEl.className = 'msg err';
+        return;
+      }
+      try {
+        const r = await fetch('/v1/admin/add-balance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          ...API,
+          body: JSON.stringify({ user_id: userId, amount }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          msgEl.textContent = data.detail || '操作失败';
+          msgEl.className = 'msg err';
+          return;
+        }
+        msgEl.textContent = '已为用户 ' + userId + ' 增加 ' + amount + ' 次，当前余额：' + data.new_balance;
+        msgEl.className = 'msg ok';
+        init();
+      } catch (e) {
+        msgEl.textContent = '网络错误';
+        msgEl.className = 'msg err';
+      }
+    });
+    init();
+  </script>
+</body>
+</html>

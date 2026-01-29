@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>注册 · AI 内容永动机</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/common.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a class="brand" href="/content-workflow">AI 内容永动机</a>
+    <a href="/content-workflow">首页</a>
+    <a href="/static/login.html">登录</a>
+  </nav>
+  <div class="container">
+    <div class="auth-card">
+      <h1>注册</h1>
+      <form id="form">
+        <div class="form-group">
+          <label>邮箱</label>
+          <input type="email" name="email" placeholder="your@email.com" required autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label>密码（至少 6 位）</label>
+          <input type="password" name="password" placeholder="至少 6 位" required minlength="6" autocomplete="new-password" />
+        </div>
+        <div id="err" class="err" style="display:none;"></div>
+        <button type="submit" class="btn" id="btn">注册</button>
+      </form>
+      <div class="link-box">
+        <a href="/static/login.html">已有账号？去登录</a>
+      </div>
+    </div>
+  </div>
+  <script>
+    const form = document.getElementById('form');
+    const errEl = document.getElementById('err');
+    const btn = document.getElementById('btn');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = form.email.value.trim();
+      const password = form.password.value;
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      try {
+        const r = await fetch('/v1/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          errEl.textContent = data.detail || '注册失败';
+          errEl.style.display = 'block';
+          return;
+        }
+        window.location.href = '/content-workflow';
+      } catch (e) {
+        errEl.textContent = '网络错误，请重试';
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
