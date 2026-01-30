@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -13,7 +13,7 @@ class TranscriptService:
         self,
         recording_id: str,
         segments: List[Dict[str, Any]],
-        asr_model: str | None = None,
+        asr_model: Optional[str] = None,
     ) -> None:
         self.db.query(TranscriptSegment).filter(TranscriptSegment.recording_id == recording_id).delete()
         self.db.commit()

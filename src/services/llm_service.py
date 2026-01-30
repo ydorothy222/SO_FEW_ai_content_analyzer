@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
@@ -26,7 +26,7 @@ class LLMService:
         return {}
 
 
-_llm_service: LLMService | None = None
+_llm_service: Optional[LLMService] = None
 
 
 def get_llm_service() -> LLMService:

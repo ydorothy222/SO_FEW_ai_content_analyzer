@@ -1,5 +1,5 @@
 """公共依赖：从 Cookie 解析身份与用量。"""
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -18,8 +18,8 @@ from src.services.usage_service import (
 def get_identity(
     request: Request,
     db: Session = Depends(get_db),
-    access_token: str | None = Cookie(default=None, alias="access_token"),
-    guest_id: str | None = Cookie(default=None, alias="guest_id"),
+    access_token: Optional[str] = Cookie(default=None, alias="access_token"),
+    guest_id: Optional[str] = Cookie(default=None, alias="guest_id"),
 ):
     """
     从 Cookie 解析身份：优先 access_token（已登录），否则 guest_id（游客）。
@@ -48,8 +48,8 @@ def get_identity(
 def get_identity_optional(
     request: Request,
     db: Session = Depends(get_db),
-    access_token: str | None = Cookie(default=None, alias="access_token"),
-    guest_id: str | None = Cookie(default=None, alias="guest_id"),
+    access_token: Optional[str] = Cookie(default=None, alias="access_token"),
+    guest_id: Optional[str] = Cookie(default=None, alias="guest_id"),
 ):
     """可选身份：用于 /auth/me，未登录时可为游客或需初始化。"""
     if access_token:

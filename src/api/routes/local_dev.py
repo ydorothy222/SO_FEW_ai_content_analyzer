@@ -1,6 +1,7 @@
 import os
 import time
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -20,9 +21,9 @@ router = APIRouter(prefix="/local-dev", tags=["local-dev"])
 class LocalIngestRequest(BaseModel):
     local_path: str = Field(..., description="本机音频文件路径（仅 dev 环境）")
     device_id: str = Field("local-test-device")
-    recording_id: str | None = Field(None, description="不传则自动生成 deviceId_timestamp")
-    start_at: int | None = Field(None)
-    end_at: int | None = Field(None)
+    recording_id: Optional[str] = Field(None, description="不传则自动生成 deviceId_timestamp")
+    start_at: Optional[int] = Field(None)
+    end_at: Optional[int] = Field(None)
     timezone: str = Field("Asia/Shanghai")
 
 

@@ -19,7 +19,6 @@ scripts\start.bat
 或：
 
 ```cmd
-cd c:\Users\dorot\Desktop\so_few
 python -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -30,36 +29,11 @@ chmod +x scripts/start.sh
 ./scripts/start.sh
 ```
 
-启动后访问：**http://127.0.0.1:8000** 或 **http://localhost:8000/content-workflow**。
-
-**本地测试后提交到 Git（Windows）：**
-
-```cmd
-scripts\git_push.bat
-```
-
-或手动执行：`git add .` → `git commit -m "feat: ..."` → `git push -u origin main`。请确认 `.env` 和 `*.db` 未被提交（已在 `.gitignore` 中）。
+启动后访问：<http://127.0.0.1:8000> 或 <http://localhost:8000/content-workflow>。
 
 ---
 
 ## 三、推送到 GitHub
-
-### 若终端提示「无法将 git 项识别为 cmdlet」
-
-说明本机**未安装 Git** 或 Git 未加入系统 PATH，需要先安装：
-
-1. **下载 Git for Windows**：https://git-scm.com/download/win  
-   或国内镜像：https://npm.taobao.org/mirrors/git-for-windows/
-
-2. **安装**：一路默认即可，安装时勾选 **“Add Git to PATH”**（把 Git 加入环境变量）。
-
-3. **重启终端**：关掉当前 PowerShell/CMD，重新打开，再执行 `git --version` 确认可用。
-
-4. **再执行提交**：在项目根目录执行 `git status`、`git add .`、`git commit`、`git push` 等。
-
-若已安装但仍提示找不到，可在 **Git Bash**（开始菜单 → Git → Git Bash）里执行上述 git 命令，Git Bash 自带 git。
-
----
 
 ### 1. 确认不要提交的内容
 
@@ -90,7 +64,7 @@ git commit -m "feat: 内容永动机 ToC + 用户用量控制"
 # https://github.com/你的用户名/so_few.git
 
 # 添加远程（本仓库示例）
-git remote add origin https://github.com/dorothy21312/SO_FEW_ai_content_analyzer.git
+git remote add origin https://github.com/ydorothy222/SO_FEW_ai_content_analyzer.git
 
 # 推送（主分支叫 main 时）
 git branch -M main
@@ -115,13 +89,94 @@ git push
 
 ## 四、服务器生产环境部署
 
-### 1. 在服务器上拉代码
+### 已打包上传到服务器后，如何运行（简明步骤）
+
+**要求**：服务器需 **Python 3.8 或以上**（Python 3.6 无法安装当前依赖）。可用 `python3 --version` 查看版本。
+
+假设代码已在服务器目录（例如 `/www/wwwroot/content_generator` 或你上传解压后的路径），按顺序执行：
+
+**1. 进入项目根目录**（能看到 `src/`、`requirements.txt` 的目录）
 
 ```bash
-# 装 Git 后
-git clone https://github.com/你的用户名/so_few.git
+cd /path/to/so_few
+```
+
+**2. 创建虚拟环境并安装依赖**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate    # Linux/macOS
+pip install --upgrade pip   # 服务器 pip 过旧会报错找不到 fastapi 等，先升级
+pip install -r requirements.txt
+```
+
+**3. 在项目根或 `src/` 下创建 `.env`**
+
+```bash
+cp .env.example .env
+nano .env   # 或 vi .env，填入 DASHSCOPE_API_KEY、JWT_SECRET 等
+```
+
+至少填：`DASHSCOPE_API_KEY`、`JWT_SECRET`（生产环境务必改成强随机字符串）。
+
+**4. 启动服务**
+
+```bash
+# 方式一：直接命令（2 个 worker，端口 8000）
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+# 方式二：用脚本（需在项目根目录）
+chmod +x scripts/start_prod.sh
+./scripts/start_prod.sh
+```
+
+**若 `pip install -r requirements.txt` 报错「Could not find a version that satisfies fastapi...」：**
+
+1. **本产品需要 Python 3.8 或以上**。若服务器当前是 **Python 3.6**（虚拟环境路径里有 `python3.6`），镜像里只有 FastAPI 到 0.83，而 0.100+ 又不支持 3.6，所以会装不上。请先安装 Python 3.8 或 3.9，再用它建虚拟环境：
+   ```bash
+   # CentOS / AlmaLinux / 阿里云 ECS 常见做法
+   dnf install python38 -y
+   # 或 yum install python38 -y
+
+   cd /www/wwwroot/content_generator
+   rm -rf .venv
+   python3.8 -m venv .venv
+   source .venv/bin/activate
+   pip install --upgrade pip
+   pip install -r requirements.txt -i https://pypi.org/simple
+   ```
+   若系统里没有 `python3.8`，可搜「CentOS 安装 Python 3.8」按教程装好后再执行上面。
+
+2. 若服务器已是 Python 3.8+，只是镜像没有新版本，请改用**官方 PyPI** 再装：
+   ```bash
+   pip install -r requirements.txt -i https://pypi.org/simple
+   ```
+
+**5. 验证**
+
+- 本机：`curl http://127.0.0.1:8000/health` 应返回 `{"status":"ok"}`
+- 外网：若防火墙已放行 8000，浏览器访问 `http://服务器IP:8000/content-workflow`
+
+**6. 后台常驻（可选）**
+
+用 `nohup` 或 `screen` 让进程在断开 SSH 后继续运行：
+
+```bash
+nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2 > sofew.log 2>&1 &
+```
+
+或配置 systemd（见下文「用 systemd 守护进程」）。
+
+---
+
+### 1. 若用 Git 在服务器上拉代码
+
+```bash
+git clone https://github.com/ydorothy222/SO_FEW_ai_content_analyzer.git so_few
 cd so_few
 ```
+
+然后从上面「2. 创建虚拟环境并装依赖」开始执行。
 
 ### 2. 创建虚拟环境并装依赖
 
@@ -130,7 +185,11 @@ python3 -m venv .venv
 source .venv/bin/activate   # Linux/macOS
 # Windows:  .venv\Scripts\activate
 
-pip install -r requirements.txt
+pip install --upgrade pip   # 若服务器 pip 很旧，先升级再装依赖
+# 若清华源报错「找不到 fastapi 0.115」，换用官方源或阿里云源：
+pip install -r requirements.txt -i https://pypi.org/simple
+# 或阿里云（国内服务器常用）：
+# pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 ```
 
 ### 3. 在服务器上建 .env

@@ -1,6 +1,6 @@
 """游客与注册用户用量：剩余次数、扣减。"""
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -24,7 +24,7 @@ class UserIdentity:
     balance: int = 0
 
 
-def get_or_create_guest(db: Session, guest_id: str | None) -> tuple[GuestIdentity, int]:
+def get_or_create_guest(db: Session, guest_id: Optional[str]) -> tuple:
     """返回 (identity, remaining)。若 guest_id 为空则创建新游客并写入 DB。"""
     settings = get_settings().auth
     quota = settings.guest_free_quota
@@ -59,7 +59,7 @@ def consume_guest(db: Session, guest_id: str) -> None:
     db.commit()
 
 
-def get_user_identity_and_remaining(db: Session, user_id: int) -> tuple[UserIdentity | None, int]:
+def get_user_identity_and_remaining(db: Session, user_id: int) -> tuple:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return None, 0

@@ -131,7 +131,7 @@ class ASRService:
         return segments
 
 
-_asr_service: ASRService | None = None
+_asr_service: Optional[ASRService] = None
 
 
 def get_asr_service() -> ASRService:
