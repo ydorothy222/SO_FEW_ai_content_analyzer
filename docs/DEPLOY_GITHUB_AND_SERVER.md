@@ -89,6 +89,99 @@ git push
 
 ## 四、服务器生产环境部署
 
+### 服务器连不上 GitHub（Connection timed out）或没有 Git：用压缩包上传部署
+
+若在服务器执行 `git clone` 报 **Failed to connect to github.com port 443: Connection timed out**，说明当前网络无法访问 GitHub，请用本机打包再上传的方式部署。
+
+在**本机**（Windows）项目根目录打包（不要包含 .venv、.env、*.db、.git）：
+
+```powershell
+cd c:\Users\dorot\Desktop\so_few
+# PowerShell：只打包运行需要的
+Compress-Archive -Path src, scripts, docs, .gitignore, README.md, requirements.txt -DestinationPath so_few.zip
+```
+
+若有 `.env.example` 可加上：`-Path src, scripts, docs, .env.example, ...`。**不要**把 `.env` 打进去（密钥不要上传）。把 `so_few.zip` 用 FTP/SFTP/宝塔文件管理上传到服务器，例如 `/www/wwwroot/`。
+
+在**服务器**上：
+
+```bash
+cd /www/wwwroot
+unzip so_few.zip -d content_generator
+# 若上传的是整个项目文件夹压缩包，可能是：unzip so_few.zip && mv so_few content_generator
+cd content_generator
+```
+
+然后从下面「2. 用 Python 3.8+ 建虚拟环境并装依赖」开始执行（建 .venv、pip install、建 .env、启动）。
+
+---
+
+### 服务器上从零拉取并启动（已装 Git 时）
+
+在服务器上按顺序执行（目录可按你习惯改，例如 `/www/wwwroot/` 或 `/home/user/`）：
+
+```bash
+# 0. 若未装 Git，先安装（任选一种）
+# CentOS / AlmaLinux / 阿里云 ECS：
+#   dnf install git -y
+# 或 yum install git -y
+# Ubuntu / Debian：
+#   apt update && apt install git -y
+
+# 1. 进入要放项目的目录，拉取代码
+cd /www/wwwroot
+git clone https://github.com/ydorothy222/SO_FEW_ai_content_analyzer.git content_generator
+cd content_generator
+
+# 2. 用 Python 3.8+ 建虚拟环境并装依赖
+python3.8 -m venv .venv
+# 若无 python3.8，用 python3 -m venv .venv（需保证 python3 为 3.8+）
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt -i https://pypi.org/simple
+
+# 3. 建 .env 并填入配置（至少 DASHSCOPE_API_KEY、JWT_SECRET）
+cp .env.example .env
+nano .env
+# 或 vi .env，填好后保存
+
+# 4. 启动服务（前台，看日志）
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
+```
+
+**验证**：本机 `curl http://127.0.0.1:8000/health` 返回 `{"status":"ok"}`，浏览器访问 `http://服务器IP:8000/content-workflow`。
+
+**后台常驻**（断开 SSH 后继续跑）：
+
+```bash
+cd /www/wwwroot/content_generator
+source .venv/bin/activate
+nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2 > sofew.log 2>&1 &
+```
+
+---
+
+### 已有项目：拉取更新并重启
+
+若代码之前已用 `git clone` 拉过，之后只需拉取最新代码、装依赖、重启服务：
+
+```bash
+cd /www/wwwroot/content_generator   # 或你的项目目录
+git pull origin main
+
+source .venv/bin/activate
+pip install -r requirements.txt -i https://pypi.org/simple
+# 本次使用 Argon2 做密码哈希；若曾出现 bcrypt 的 __about__ 报错，装完依赖后即可解决
+
+# 重启：先结束旧进程再启动
+pkill -f "uvicorn src.main:app" || true
+nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2 >> sofew.log 2>&1 &
+```
+
+若使用 systemd 管理服务：`systemctl restart sofew`（见下文「用 systemd 守护进程」）。
+
+---
+
 ### 已打包上传到服务器后，如何运行（简明步骤）
 
 **要求**：服务器需 **Python 3.8 或以上**（Python 3.6 无法安装当前依赖）。可用 `python3 --version` 查看版本。
@@ -166,6 +259,18 @@ nohup python -m uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2 > so
 ```
 
 或配置 systemd（见下文「用 systemd 守护进程」）。
+
+**7. 怎么看日志（排查报错）**
+
+- **nohup 启动时**：日志在项目根目录的 `sofew.log`。
+  ```bash
+  cd /www/wwwroot/content_generator
+  tail -f sofew.log          # 实时看最新输出
+  tail -n 200 sofew.log      # 看最后 200 行
+  grep -i error sofew.log    # 搜错误关键词
+  ```
+- **前台启动时**：报错会直接打在当前终端，关掉终端就没了。
+- **systemd 启动时**：`journalctl -u sofew -f` 或 `journalctl -u sofew -n 200`。
 
 ---
 

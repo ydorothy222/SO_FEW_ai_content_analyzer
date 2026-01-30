@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from src.config import get_settings
 from src.db.models import User
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Argon2 无密码长度限制，新用户用 argon2；已有 bcrypt 哈希的仍可验证
+pwd_ctx = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:

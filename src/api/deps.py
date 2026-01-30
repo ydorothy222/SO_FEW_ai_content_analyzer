@@ -1,5 +1,5 @@
 """公共依赖：从 Cookie 解析身份与用量。"""
-from typing import Annotated, Optional
+from typing import Optional
 
 from fastapi import Cookie, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session

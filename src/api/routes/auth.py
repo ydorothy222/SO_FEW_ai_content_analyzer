@@ -25,7 +25,7 @@ COOKIE_HTTPONLY = True
 
 class RegisterBody(BaseModel):
     email: str = Field(..., min_length=3, max_length=256)
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(...)
 
     @field_validator("email")
     @classmethod
@@ -37,8 +37,8 @@ class RegisterBody(BaseModel):
 
 
 class LoginBody(BaseModel):
-    email: str = Field(..., description="邮箱或管理员账号 YANGRONG")
-    password: str = Field(..., min_length=1)
+    email: str = Field(..., description="邮箱或账号")
+    password: str = Field(...)
 
 
 @router.post("/register")
@@ -85,7 +85,7 @@ def login(
     response: Response,
     db: Session = Depends(get_db),
 ):
-    """登录。管理员账号/密码均为 YANGRONG 时免费用量。"""
+    """登录。管理员账号免费用量，普通用户用邮箱+密码。"""
     try:
         user = login_user(db, body.email, body.password)
     except ValueError as e:
